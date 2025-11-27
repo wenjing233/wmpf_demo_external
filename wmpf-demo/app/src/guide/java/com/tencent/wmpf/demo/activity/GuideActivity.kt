@@ -13,6 +13,7 @@ import com.tencent.wmpf.demo.R
 import com.tencent.wmpf.demo.ui.AgentActivity
 import com.tencent.wmpf.demo.ui.DocumentActivity
 import com.tencent.wmpf.demo.ui.FastExperienceActivity
+import com.tencent.wmpf.demo.ui.GlobalSettingActivity
 import com.tencent.wmpf.demo.ui.MpDeviceActivity
 import com.tencent.wmpf.demo.ui.PushMsgQuickStartActivity
 import com.tencent.wmpf.demo.ui.VoipActivity
@@ -39,6 +40,10 @@ class GuideActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btn_mp_device).setOnClickListener {
             startActivity(Intent(this, MpDeviceActivity::class.java))
+        }
+
+        findViewById<Button>(R.id.global_setting).setOnClickListener {
+            startActivity(Intent(this, GlobalSettingActivity::class.java))
         }
 
         findViewById<Button>(R.id.btn_voip).setOnClickListener {

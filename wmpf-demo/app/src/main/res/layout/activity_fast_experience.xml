@@ -80,6 +80,13 @@
             android:text="启动小程序" />
 
         <Button
+            android:id="@+id/btn_launch_wxa_app_in_float"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="以悬浮窗口启动小程序" />
+
+        <Button
             android:id="@+id/btn_launch_login"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

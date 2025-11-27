@@ -1,21 +1,29 @@
 package com.tencent.wmpf.demo.ui
 
 import android.annotation.SuppressLint
+import android.os.Build
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
+import android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.RadioGroup
 import android.widget.Spinner
 import android.widget.TextView
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import androidx.preference.PreferenceManager
 import com.tencent.wmpf.cli.api.WMPF
 import com.tencent.wmpf.cli.api.WMPFAccountApi
 import com.tencent.wmpf.cli.api.WMPFMiniProgramApi.LandscapeMode
+import com.tencent.wmpf.cli.model.WMPFSize
 import com.tencent.wmpf.cli.model.WMPFStartAppParams
 import com.tencent.wmpf.cli.model.WMPFStartAppParams.WMPFAppType
+import com.tencent.wmpf.cli.model.protocol.WMPFStartAppRequest
+import com.tencent.wmpf.cli.window.WMPFFloatWindowOrientationSpecific
+import com.tencent.wmpf.cli.window.WMPFFloatWindowSpecific
 import com.tencent.wmpf.demo.R
 
 class FastExperienceActivity : ApiActivity() {
@@ -26,6 +34,7 @@ class FastExperienceActivity : ApiActivity() {
     }
     private var appType = WMPFAppType.APP_TYPE_RELEASE
 
+    @RequiresApi(Build.VERSION_CODES.O)
     @SuppressLint("SetTextI18n")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,6 +94,54 @@ class FastExperienceActivity : ApiActivity() {
                 WMPF.getInstance().miniProgramApi.launchMiniProgram(
                     param, false, landscapeMode
                 )
+            }
+        }
+
+        findViewById<Button>(R.id.btn_launch_wxa_app_in_float).setOnClickListener {
+            val param = createStartAppParams()
+            invokeWMPFApi("以悬浮窗口启动小程序",true){
+                assertLoginState(param.appType)
+                WMPF.getInstance().miniProgramApi.launchMiniProgram(
+                    WMPFStartAppRequest(
+                        param,false,landscapeMode
+                    ).apply {
+                        val portraitWidth = 500
+                        val portraitHeight = 700
+                        val landscapeWidth = 700
+                        val landscapeHeight = 500
+                        val x = 0
+                        val y = 0
+                        specific = WMPFFloatWindowSpecific(portraitWidth,
+                            portraitHeight,
+                            landscapeWidth,
+                            landscapeHeight,
+                            15F,
+                            x,
+                            y,
+                            true,
+                            Gravity.CENTER,
+                            TYPE_APPLICATION_OVERLAY
+                        ).apply {
+                            var landscapeModeInFloat = WMPFFloatWindowSpecific.Orientation.PORTRAIT
+                            if(landscapeMode == LandscapeMode.LANDSCAPE
+                                || landscapeMode == LandscapeMode.LANDSCAPE_COMPAT){
+                                landscapeModeInFloat = WMPFFloatWindowSpecific.Orientation.LANDSCAPE_LOCKED
+                            }
+                            orientation = landscapeModeInFloat
+                            portraitSpec.apply {
+                                isDraggableHorizontally = true
+                                isDraggableVertically = true
+                                dragAreaHeight = 100
+                                dragBarSize = WMPFSize(landscapeWidth,100)
+                            }
+                            landscapeSpec.apply {
+                                isDraggableHorizontally = true
+                                isDraggableVertically = true
+                                dragAreaHeight = 100
+                                dragBarSize = WMPFSize(landscapeWidth,100)
+                            }
+                        }
+                })
             }
         }
 
