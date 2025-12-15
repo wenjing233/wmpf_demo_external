@@ -1,23 +1,20 @@
 package com.tencent.wmpf.demo.ui
 
-import android.annotation.SuppressLint
 import android.os.Bundle
-import android.text.Editable
-import android.text.TextWatcher
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.RadioButton
-import android.widget.RadioGroup
-import android.widget.Spinner
-import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
-import com.google.android.material.tabs.TabLayoutMediator
+import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
 import com.tencent.wmpf.cli.api.WMPF
 import com.tencent.wmpf.cli.api.WMPFApiException
 import com.tencent.wmpf.demo.R
@@ -38,35 +35,34 @@ data class SettingItem(
     var currentValue: String,           // 当前值
     val defaultValue: String,           // 默认值
     val validOptions: Array<String>?,   // 有效选项列表
-    val uiType: UIType,                 // UI组件类型
-    var uiComponent: View? = null       // UI组件引用
+    val uiType: UIType                  // UI组件类型
 ) {
-     override fun equals(other: Any?): Boolean {
-         if (this === other) return true
-         if (javaClass != other?.javaClass) return false
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
 
-         other as SettingItem
+        other as SettingItem
 
-         if (key != other.key) return false
-         if (currentValue != other.currentValue) return false
-         if (defaultValue != other.defaultValue) return false
-         if (validOptions != null) {
-             if (other.validOptions == null) return false
-             if (!validOptions.contentEquals(other.validOptions)) return false
-         } else if (other.validOptions != null) return false
-         if (uiType != other.uiType) return false
+        if (key != other.key) return false
+        if (currentValue != other.currentValue) return false
+        if (defaultValue != other.defaultValue) return false
+        if (validOptions != null) {
+            if (other.validOptions == null) return false
+            if (!validOptions.contentEquals(other.validOptions)) return false
+        } else if (other.validOptions != null) return false
+        if (uiType != other.uiType) return false
 
-         return true
-     }
+        return true
+    }
 
-     override fun hashCode(): Int {
-         var result = key.hashCode()
-         result = 31 * result + currentValue.hashCode()
-         result = 31 * result + defaultValue.hashCode()
-         result = 31 * result + (validOptions?.contentHashCode() ?: 0)
-         result = 31 * result + uiType.hashCode()
-         return result
-     }
+    override fun hashCode(): Int {
+        var result = key.hashCode()
+        result = 31 * result + currentValue.hashCode()
+        result = 31 * result + defaultValue.hashCode()
+        result = 31 * result + (validOptions?.contentHashCode() ?: 0)
+        result = 31 * result + uiType.hashCode()
+        return result
+    }
 }
 
 class GlobalSettingActivity : ApiActivity() {
@@ -80,10 +76,8 @@ class GlobalSettingActivity : ApiActivity() {
     // 配置项分组：分组名称 -> 配置项key列表
     private val settingGroups = mutableMapOf<String, MutableList<String>>()
 
-    private lateinit var btnSaveSettings: Button
+    private lateinit var containerSettings: LinearLayout
     private lateinit var btnResetDefaults: Button
-    private lateinit var viewPager: androidx.viewpager2.widget.ViewPager2
-    private lateinit var tabLayout: com.google.android.material.tabs.TabLayout
 
     private val settingApi by lazy {
         WMPF.getInstance().settingApi
@@ -101,18 +95,11 @@ class GlobalSettingActivity : ApiActivity() {
     }
 
     private fun initViews() {
-        btnSaveSettings = findViewById(R.id.btn_save_settings)
+        containerSettings = findViewById(R.id.container_settings)
         btnResetDefaults = findViewById(R.id.btn_reset_defaults)
-        viewPager = findViewById(R.id.view_pager)
-        tabLayout = findViewById(R.id.tab_layout)
     }
 
     private fun setupListeners() {
-
-        btnSaveSettings.setOnClickListener {
-            saveSettings()
-        }
-
         btnResetDefaults.setOnClickListener {
             resetToDefaults()
         }
@@ -141,13 +128,9 @@ class GlobalSettingActivity : ApiActivity() {
 
                         // 验证默认值 for debug
                         // validateDefaultValue(key, defaultValue, validOptions)
-                        
+
                         settingItems[key] = SettingItem(
-                            key,
-                            currentValue,
-                            defaultValue,
-                            validOptions,
-                            uiType
+                            key, currentValue, defaultValue, validOptions, uiType
                         )
                     } catch (e: Exception) {
                         Log.e(TAG, "加载配置项失败: key=$key", e)
@@ -156,9 +139,7 @@ class GlobalSettingActivity : ApiActivity() {
 
                 groupSettings()
 
-                runOnUiThread {
-                    setupTabs()
-                }
+                runOnUiThread { createAllSettingsUI() }
             } catch (e: WMPFApiException) {
                 Log.e(TAG, "加载所有配置项失败", e)
                 runOnUiThread {
@@ -177,9 +158,7 @@ class GlobalSettingActivity : ApiActivity() {
      * for debug
      */
     private fun validateDefaultValue(
-        key: String,
-        defaultValue: String,
-        validOptions: Array<String>?
+        key: String, defaultValue: String, validOptions: Array<String>?
     ) {
         val kv = "键： key=$key 实际可选值: validOptions=${validOptions.contentToString()}"
         Log.d(TAG, kv)
@@ -221,14 +200,17 @@ class GlobalSettingActivity : ApiActivity() {
 
         for (key in settingItems.keys) {
             when {
-                key.startsWith("configDarkMode") || key.startsWith("enableDarkMode") ||
-                        key.startsWith("configUI") || key.startsWith("enableLeftCapsule") ||
-                        key.startsWith("enableKeyboard") -> basicKeys.add(key)
+                key.startsWith("configDarkMode") || key.startsWith("enableDarkMode") || key.startsWith(
+                    "configUI"
+                ) || key.startsWith("enableLeftCapsule") || key.startsWith("enableKeyboard") -> basicKeys.add(
+                    key
+                )
 
-                key.startsWith("enableSingleProcess") || key.startsWith("configMaxContainer") ||
-                        key.startsWith("configMaxMiniProgram") || key.startsWith("configSuspend") ||
-                        key.startsWith("configSuicide") || key.startsWith("configNoBackground") ||
-                        key.startsWith("configKeepAlive") -> processKeys.add(key)
+                key.startsWith("enableSingleProcess") || key.startsWith("configMaxContainer") || key.startsWith(
+                    "configMaxMiniProgram"
+                ) || key.startsWith("configSuspend") || key.startsWith("configSuicide") || key.startsWith(
+                    "configNoBackground"
+                ) || key.startsWith("configKeepAlive") -> processKeys.add(key)
 
                 key.startsWith("openVoice") || key.contains("Camera") -> cameraKeys.add(key)
 
@@ -243,261 +225,133 @@ class GlobalSettingActivity : ApiActivity() {
     }
 
     /**
-     * 设置TabLayout和ViewPager2
+     * 构建单页 UI
      */
-    private fun setupTabs() {
-        val groupNames = settingGroups.keys.toList()
+    private fun createAllSettingsUI() {
+        containerSettings.removeAllViews()
 
-        val adapter = SettingPagerAdapter(this, settingGroups) { fragment, position ->
-            val groupName = groupNames.getOrNull(position) ?: return@SettingPagerAdapter
-            val keys = settingGroups[groupName] ?: return@SettingPagerAdapter
-
-            val container = fragment.getContainer()
-            container?.let {
-                for (key in keys) {
-                    val item = settingItems[key] ?: continue
-                    val view = createSettingView(item)
-                    it.addView(view)
-                }
+        val groupOrder = listOf("基础设置", "进程设置", "摄像头设置", "高级设置")
+        for (groupName in groupOrder) {
+            val keys = settingGroups[groupName] ?: continue
+            addGroupHeader(groupName)
+            for (key in keys) {
+                val item = settingItems[key] ?: continue
+                val button = createSettingButton(item)
+                containerSettings.addView(button)
             }
         }
-        viewPager.adapter = adapter
-
-        TabLayoutMediator(tabLayout, viewPager) { tab, position ->
-            tab.text = groupNames.getOrNull(position) ?: ""
-        }.attach()
     }
 
-    /**
-     * 创建单个配置项的UI组件
-     */
-    private fun createSettingView(item: SettingItem): View {
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = ViewGroup.MarginLayoutParams(
-                ViewGroup.MarginLayoutParams.MATCH_PARENT,
-                ViewGroup.MarginLayoutParams.WRAP_CONTENT
-            ).apply {
-                setMargins(0, 16.dpToPx(), 0, 0)
-            }
-        }
-
-        // 标题
-        val title = TextView(this).apply {
-            text = item.key
-            textSize = 16f
+    private fun addGroupHeader(groupName: String) {
+        val header = TextView(this).apply {
+            text = groupName
+            textSize = 18f
             setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(
+                ContextCompat.getColor(
+                    this@GlobalSettingActivity, android.R.color.darker_gray
+                )
+            )
+            setPadding(0, 24.dpToPx(), 0, 8.dpToPx())
+        }
+        val divider = View(this).apply {
             layoutParams = ViewGroup.MarginLayoutParams(
-                ViewGroup.MarginLayoutParams.MATCH_PARENT,
-                ViewGroup.MarginLayoutParams.WRAP_CONTENT
+                ViewGroup.MarginLayoutParams.MATCH_PARENT, 1.dpToPx()
+            )
+            setBackgroundColor(
+                ContextCompat.getColor(
+                    this@GlobalSettingActivity, android.R.color.darker_gray
+                )
+            )
+        }
+        containerSettings.addView(header)
+        containerSettings.addView(divider)
+    }
+
+    private fun createSettingButton(item: SettingItem): Button {
+        val valueColor = ContextCompat.getColor(this, android.R.color.darker_gray)
+        val textSpannable = SpannableStringBuilder().apply {
+            append(item.key)
+            append("  ")
+            val start = length
+            append(item.currentValue)
+            setSpan(
+                ForegroundColorSpan(valueColor), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            setSpan(
+                RelativeSizeSpan(0.9f), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+
+        return Button(this).apply {
+            isAllCaps = false
+            setText(textSpannable, TextView.BufferType.SPANNABLE)
+            textAlignment = View.TEXT_ALIGNMENT_TEXT_START
+            setPadding(16.dpToPx(), 12.dpToPx(), 16.dpToPx(), 12.dpToPx())
+            layoutParams = ViewGroup.MarginLayoutParams(
+                ViewGroup.MarginLayoutParams.MATCH_PARENT, ViewGroup.MarginLayoutParams.WRAP_CONTENT
             ).apply {
-                setMargins(0, 0, 0, 8.dpToPx())
+                setMargins(0, 6.dpToPx(), 0, 0)
             }
-        }
-        container.addView(title)
-
-        // 根据类型创建组件
-        val component = when (item.uiType) {
-            UIType.BOOLEAN_SWITCH -> createSwitch(item)
-            UIType.ENUM_RADIO -> createRadioGroup(item)
-            UIType.ENUM_SPINNER -> createSpinner(item)
-            UIType.TEXT_INPUT -> createEditText(item)
-        }
-
-        item.uiComponent = component
-        container.addView(component)
-
-        return container
-    }
-
-    /**
-     * 创建Switch组件
-     */
-    @SuppressLint("UseSwitchCompatOrMaterialCode")
-    private fun createSwitch(item: SettingItem): Switch {
-        val switch = Switch(this).apply {
-            isChecked = item.currentValue == "true"
-            setOnCheckedChangeListener { _, isChecked ->
-                item.currentValue = if (isChecked) "true" else "false"
-            }
-        }
-        return switch
-    }
-
-    /**
-     * 创建RadioGroup组件
-     */
-    private fun createRadioGroup(item: SettingItem): RadioGroup {
-        val radioGroup = RadioGroup(this).apply {
-            orientation = RadioGroup.HORIZONTAL
-        }
-
-        item.validOptions?.forEachIndexed { _, option ->
-            val radioButton = RadioButton(this).apply {
-                id = View.generateViewId()
-                text = option
-                tag = option
-            }
-            radioGroup.addView(radioButton)
-        }
-
-        // 设置选中项
-        item.validOptions?.indexOf(item.currentValue)?.let { index ->
-            if (index >= 0 && index < radioGroup.childCount) {
-                radioGroup.check(radioGroup.getChildAt(index).id)
-            }
-        }
-
-        radioGroup.setOnCheckedChangeListener { _, checkedId ->
-            val checkedView = radioGroup.findViewById<RadioButton>(checkedId)
-            item.currentValue = checkedView?.tag as? String ?: item.currentValue
-        }
-
-        return radioGroup
-    }
-
-    /**
-     * 创建Spinner组件
-     */
-    private fun createSpinner(item: SettingItem): Spinner {
-        val spinner = Spinner(this)
-        val options = item.validOptions ?: arrayOf()
-        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, options)
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinner.adapter = adapter
-
-        val selectedIndex = options.indexOf(item.currentValue)
-        if (selectedIndex >= 0) {
-            spinner.setSelection(selectedIndex)
-        }
-
-        spinner.onItemSelectedListener =
-            object : android.widget.AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(
-                    parent: android.widget.AdapterView<*>?,
-                    view: View?,
-                    position: Int,
-                    id: Long
-                ) {
-                    item.currentValue = options[position]
-                }
-
-                override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
-            }
-
-        return spinner
-    }
-
-    /**
-     * 创建EditText组件
-     */
-    private fun createEditText(item: SettingItem): EditText {
-        val editText = EditText(this).apply {
-            setText(item.currentValue)
-            addTextChangedListener(object : TextWatcher {
-                override fun beforeTextChanged(
-                    s: CharSequence?,
-                    start: Int,
-                    count: Int,
-                    after: Int
-                ) {
-                }
-
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-                override fun afterTextChanged(s: Editable?) {
-                    item.currentValue = s?.toString() ?: ""
-                }
-            })
-        }
-        return editText
-    }
-
-    /**
-     * 加载当前设置值并更新UI
-     */
-//    private fun loadCurrentSettings() {
-//        invokeWMPFApi("加载设置", true) {
-//            try {
-//                for ((key, item) in settingItems) {
-//                    try {
-//                        val value = settingApi.getValue(key)
-//                        item.currentValue = value
-//
-//                        runOnUiThread {
-//                            updateUIComponent(item)
-//                        }
-//                    } catch (e: Exception) {
-//                        Log.e(TAG, "加载配置项失败: key=$key", e)
-//                    }
-//                }
-//
-//                runOnUiThread {
-//                    Toast.makeText(this@GlobalSettingActivity, "设置加载成功", Toast.LENGTH_SHORT)
-//                        .show()
-//                }
-//            } catch (e: WMPFApiException) {
-//                Log.e(TAG, "加载设置失败", e)
-//                runOnUiThread {
-//                    Toast.makeText(
-//                        this@GlobalSettingActivity,
-//                        "加载设置失败: ${e.message}",
-//                        Toast.LENGTH_LONG
-//                    ).show()
-//                }
-//            }
-//        }
-//    }
-
-    /**
-     * 更新UI组件显示
-     */
-    private fun updateUIComponent(item: SettingItem) {
-        when (val component = item.uiComponent) {
-            is Switch -> {
-                component.isChecked = item.currentValue == "true"
-            }
-
-            is RadioGroup -> {
-                item.validOptions?.indexOf(item.currentValue)?.let { index ->
-                    if (index >= 0 && index < component.childCount) {
-                        component.check(component.getChildAt(index).id)
-                    }
-                }
-            }
-
-            is Spinner -> {
-                val index = item.validOptions?.indexOf(item.currentValue) ?: -1
-                if (index >= 0) {
-                    component.setSelection(index)
-                }
-            }
-
-            is EditText -> {
-                component.setText(item.currentValue)
-            }
+            setOnClickListener { showEditDialog(item) }
         }
     }
 
-    /**
-     * 保存当前UI中的设置值
-     */
-    private fun saveSettings() {
-        invokeWMPFApi("保存设置", true) {
+    private fun showEditDialog(item: SettingItem) {
+        when (item.uiType) {
+            UIType.BOOLEAN_SWITCH -> showBooleanDialog(item)
+            UIType.ENUM_RADIO -> showOptionsDialog(item)
+            UIType.ENUM_SPINNER -> showOptionsDialog(item)
+            UIType.TEXT_INPUT -> showTextInputDialog(item)
+        }
+    }
+
+    private fun showBooleanDialog(item: SettingItem) {
+        val options = arrayOf("true", "false")
+        val currentIndex = options.indexOf(item.currentValue)
+        AlertDialog.Builder(this).setTitle(item.key)
+            .setSingleChoiceItems(options, currentIndex) { dialog, which ->
+                saveSettingImmediately(item, options[which])
+                dialog.dismiss()
+            }.setNegativeButton("取消", null).show()
+    }
+
+    private fun showOptionsDialog(item: SettingItem) {
+        val options = item.validOptions ?: return
+        val currentIndex = options.indexOf(item.currentValue)
+        AlertDialog.Builder(this).setTitle(item.key)
+            .setSingleChoiceItems(options, currentIndex) { dialog, which ->
+                saveSettingImmediately(item, options[which])
+                dialog.dismiss()
+            }.setNegativeButton("取消", null).show()
+    }
+
+    private fun showTextInputDialog(item: SettingItem) {
+        val input = EditText(this).apply { setText(item.currentValue) }
+        AlertDialog.Builder(this).setTitle(item.key).setView(input)
+            .setPositiveButton("确定") { _, _ ->
+                saveSettingImmediately(item, input.text.toString())
+            }.setNegativeButton("取消", null).show()
+    }
+
+    private fun saveSettingImmediately(item: SettingItem, newValue: String) {
+        invokeWMPFApi("保存配置", false) {
             try {
-                for ((key, item) in settingItems) {
-                    try {
-                        settingApi.setSetting(key, item.currentValue)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "保存配置项失败: key=$key", e)
-                    }
-                }
-            } catch (e: WMPFApiException) {
-                Log.e(TAG, "保存设置失败", e)
+                settingApi.setSetting(item.key, newValue)
+                item.currentValue = newValue
                 runOnUiThread {
+                    createAllSettingsUI()
                     Toast.makeText(
                         this@GlobalSettingActivity,
-                        "保存设置失败: ${e.message}",
-                        Toast.LENGTH_LONG
+                        "已保存: ${item.key} = $newValue",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "保存失败: ${item.key}", e)
+                runOnUiThread {
+                    Toast.makeText(
+                        this@GlobalSettingActivity, "保存失败: ${e.message}", Toast.LENGTH_SHORT
                     ).show()
                 }
             }
@@ -505,33 +359,32 @@ class GlobalSettingActivity : ApiActivity() {
     }
 
     /**
-     * 恢复默认值
+     * 恢复默认值：二次确认 + 批量恢复 + 刷新 UI
      */
     private fun resetToDefaults() {
+        AlertDialog.Builder(this).setTitle("恢复默认值").setMessage("确定要恢复所有配置为默认值吗？")
+            .setPositiveButton("确定") { _, _ -> performResetToDefaults() }
+            .setNegativeButton("取消", null).show()
+    }
+
+    private fun performResetToDefaults() {
         invokeWMPFApi("恢复默认值", true) {
             try {
                 for ((key, item) in settingItems) {
                     try {
                         val defaultValue = settingApi.getDefaultValue(key)
-                        validateDefaultValue(key, defaultValue, item.validOptions)
                         item.currentValue = defaultValue
-
-                        runOnUiThread {
-                            updateUIComponent(item)
-                        }
+                        settingApi.setSetting(key, defaultValue)
                     } catch (e: Exception) {
                         Log.e(TAG, "恢复配置项默认值失败: key=$key", e)
                     }
                 }
 
                 runOnUiThread {
+                    createAllSettingsUI()
                     Toast.makeText(
-                        this@GlobalSettingActivity,
-                        "已恢复所有默认值，正在保存...",
-                        Toast.LENGTH_SHORT
+                        this@GlobalSettingActivity, "已恢复所有默认值", Toast.LENGTH_SHORT
                     ).show()
-                    // 恢复默认值后自动保存
-                    saveSettings()
                 }
             } catch (e: WMPFApiException) {
                 Log.e(TAG, "恢复默认值失败", e)
