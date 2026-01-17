@@ -36,6 +36,7 @@
             </intent-filter>
         </activity>
         <activity android:name=".ui.AgentActivity" /> <!-- Agent功能体验 -->
+        <activity android:name=".ui.GlobalSettingActivity" /> <!-- 全局设置 -->
 
         <provider
             android:name=".provider.ClientProvider"

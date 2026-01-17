@@ -46,6 +46,13 @@
         android:layout_marginTop="8dp"
         android:text="小程序设备认证（需启动 rpmbd）" />
 
+    <Button
+        android:id="@+id/global_setting"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="全局设置" />
+
     <TextView
         android:id="@+id/title_scene"
         android:layout_width="match_parent"
