@@ -4,7 +4,9 @@ import android.annotation.SuppressLint
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.view.Gravity
 import android.view.View
+import android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -146,9 +148,9 @@ class FastExperienceActivity : ApiActivity() {
                     // 设置浮窗配置
                     specific = floatSpecific
                     // 显式开启浮窗模式
-                    setFloatWindow(true)
+                    isFloatWindow = true
                     // 强制索引不重启
-                    setForceIndexNoRelaunch(true)
+                    isForceIndexNoRelaunch = true
                 }
 
                 WMPF.getInstance().miniProgramApi.launchMiniProgram(request)
